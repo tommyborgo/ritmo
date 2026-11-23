@@ -1725,7 +1725,7 @@ function gDiscard(){gWatchOff();clearInterval(gTick);G=null;gSave(true);liveClos
 const TILES={
  dettagli:{n:'Dettagliata (anche sentieri e vicoli)',u:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',sub:'',nat:19,a:'© OpenStreetMap'},
  bici:{n:'Bici e corsa (ciclabili e percorsi)',u:'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',sub:'abc',nat:20,a:'© OpenStreetMap · CyclOSM'},
- strade:{n:'Pulita (stile Google Maps)',u:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',sub:'abcd',nat:20,a:'© OpenStreetMap © CARTO'},
+ strade:{n:'Pulita (stile Google Maps)',u:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',sub:'',nat:19,a:'© Esri, HERE, Garmin, © OpenStreetMap'},
  satellite:{n:'Satellite',u:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',sub:'',nat:19,a:'© Esri'}};
 const mapStyle=()=>TILES[state.mapStyle]?state.mapStyle:'dettagli';
 function mkMap(el,o){if(!window.L||!el)return null;try{const m=L.map(el,Object.assign({zoomControl:false,attributionControl:true,maxZoom:20},o||{}));
@@ -1886,18 +1886,20 @@ async function gPrefetch(btn){
   const t2x=(lo,z)=>Math.floor((lo+180)/360*2**z),t2y=(la,z)=>{const r=la*Math.PI/180;return Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*2**z)};
   const T=TILES[OFF_STYLE],urls=[],r2=(window.devicePixelRatio||1)>1?'@2x':'';
   const add=(km,z0,z1)=>{const dLa=km/111,dLo=km/(111*Math.cos(pos.la*Math.PI/180));for(let z=z0;z<=z1;z++){const x0=t2x(pos.lo-dLo,z),x1=t2x(pos.lo+dLo,z),y0=t2y(pos.la+dLa,z),y1=t2y(pos.la-dLa,z);
-    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)urls.push(T.u.replace('{s}',T.sub[(x+y)%T.sub.length]).replace('{z}',z).replace('{x}',x).replace('{y}',y).replace('{r}',r2))}};
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)urls.push(T.u.replace('{s}',T.sub?T.sub[(x+y)%T.sub.length]:'').replace('{z}',z).replace('{x}',x).replace('{y}',y).replace('{r}',r2))}};
   add(50,8,12);add(25,13,13);add(10,14,16);
   ui.prefetching=true;let wl=null;try{wl=await navigator.wakeLock.request('screen')}catch(e){}const cache=await caches.open('ritmo-mappe');const tk=u=>u.replace(/\/\/[a-d]\.basemaps/,'//a.basemaps');let done=0,ok=0;const q=urls.slice();const t0=Date.now();
   const work=async()=>{while(q.length){const u=q.shift();try{if(!(await cache.match(tk(u),{ignoreVary:true}))&&!(await cache.match(u,{ignoreVary:true}))){let r=null;try{r=await fetch(u,{mode:'cors'})}catch(e){r=await fetch(u,{mode:'no-cors'})}if(r&&(r.ok||r.type==='opaque')){await cache.put(tk(u),r);ok++}}else ok++}catch(e){}done++;
     if(btn&&done%25===0){const pc=done/urls.length,left=Math.round((Date.now()-t0)/pc*(1-pc)/1000);btn.textContent=`Salvo la mappa… ${Math.round(pc*100)}% · ancora ${left>90?Math.round(left/60)+' min':left+' s'}`}}};
   await Promise.all(Array.from({length:16},work));ui.prefetching=false;try{wl&&wl.release()}catch(e){}
-  if(ok<urls.length*0.9){if(btn)btn.textContent='⚠ Salvata solo in parte: tocca per riprovare';toast(`Salvati ${ok} riquadri su ${urls.length}: tieni lo schermo acceso e il Wi-Fi, poi riprova`);state.mapPack={la:pos.la,lo:pos.lo,d:today(),n:ok,tot:urls.length};save(true);return}
-  state.mapPack={la:pos.la,lo:pos.lo,d:today(),n:ok,tot:urls.length};save(true);
+  if(ok<urls.length*0.9){if(btn)btn.textContent='⚠ Salvata solo in parte: tocca per riprovare';toast(`Salvati ${ok} riquadri su ${urls.length}: tieni lo schermo acceso e il Wi-Fi, poi riprova`);state.mapPack={la:pos.la,lo:pos.lo,d:today(),n:ok,tot:urls.length,src:'esri'};save(true);return}
+  state.mapPack={la:pos.la,lo:pos.lo,d:today(),n:ok,tot:urls.length,src:'esri'};save(true);
   if(btn)btn.textContent='✓ Mappa salvata: 50 km intorno a casa';toast(`Mappa offline salvata: ${ok} riquadri (dettaglio fino a 10 km, generale fino a 50 km)`)}
 
-async function gMapCheck(){try{const n=(await (await caches.open('ritmo-mappe')).keys()).length,mp=state.mapPack||{};const tot=mp.tot||3700;
+async function gMapCheck(){try{const c=await caches.open('ritmo-mappe'),ks=await c.keys(),n=ks.length,mp=state.mapPack||{};const tot=mp.tot||3700;
+  if(n>20){const sz=new Set();for(const k of ks.filter((_,i)=>i%Math.floor(n/20)===0).slice(0,20)){const r=await c.match(k);if(r&&r.type!=='opaque')sz.add((await r.clone().blob()).size)}if(sz.size===1){toast('⚠ I riquadri salvati sono tutti uguali: non sono una mappa vera. Con il Wi-Fi tocca "Salva la mappa offline"');return}}
   toast(n>=tot*0.9?`✓ Mappa offline a posto: ${n} riquadri salvati sul telefono`:n?`⚠ Ci sono solo ${n} riquadri su circa ${tot}: con il Wi-Fi tocca "aggiorna"`:'⚠ La mappa offline non è sul telefono: con il Wi-Fi tocca "aggiorna"')}catch(e){toast('Questo browser non permette di controllare la mappa salvata')}}
+(async()=>{try{if(state.mapPack&&state.mapPack.src!=='esri'&&window.caches){await caches.delete('ritmo-mappe');state.mapPack=null;save(true);if(typeof render==='function')render();setTimeout(()=>toast('La mappa offline va riscaricata (il vecchio servizio ora chiede una chiave). Con il Wi-Fi tocca "Salva la mappa offline"'),1500)}}catch(e){}})();
 /* ---------- ORARI ---------- */
 function vOrari(){
   const t=today();if(ui.weekOff===null)ui.weekOff=(wd(t)===6&&new Date().getHours()>=14)?1:0;
