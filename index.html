@@ -1359,7 +1359,7 @@ function actRow(a){const day=actDay(a),sameDay=day&&trainingKeyFor(day);
   const isG=GPS_T.includes(a.tipo);
   const info=a.gps?`<div class="small" style="color:var(--good);font-weight:700">GPS: ${fmtKmI(a.gps.dist)} km · ${fmtTI(a.gps.moving)} · ${a.tipo==='Bici'?speedI(a.gps.moving,a.gps.dist)+' km/h':paceI(a.gps.moving,a.gps.dist)+' /km'}</div>`:isG?`<div class="small muted">Durata e sforzo li misura il GPS quando registri${a.nota?' · '+esc(a.nota):''}</div>`:`<div class="small muted">${a.min} min · sforzo ${({bassa:'basso',media:'medio',alta:'alto'})[a.int]||esc(a.int)}${a.nota?' · '+esc(a.nota):''}</div>`;
   const rec=isG&&!a.gps&&day===today()?`<button class="btn sm good" style="margin-top:6px" data-act="gps-start" data-id="${a.id}" data-v="${esc(a.tipo)}">▶ Registra</button>`:'';
-  return `<div class="li" data-act="${a.gps?'gps-open':'edit-act'}" data-id="${a.id}" style="cursor:pointer;align-items:flex-start"><div class="grow"><b>${esc(a.tipo)}</b>${oraTxt}${a.flex?' <span class="pill accent">giorno scelto dall\'app</span>':''}${info}${hint}${rec}</div><span class="pill heat">${a.gps?'':'≈ '}+${int(actKcal(a))} kcal</span></div>`}
+  return `<div class="li" data-act="${a.gps?'gps-open':'edit-act'}" data-id="${a.id}" style="cursor:pointer;align-items:flex-start"><div class="grow"><b>${a.titolo?esc(a.titolo)+'</b> <span class="muted small">· '+esc(a.tipo)+'</span><b>':esc(a.tipo)}</b>${oraTxt}${a.flex?' <span class="pill accent">giorno scelto dall\'app</span>':''}${info}${hint}${rec}</div><span class="pill heat">${a.gps?'':'≈ '}+${int(actKcal(a))} kcal</span></div>`}
 
 /* ---------- ALLENAMENTO ---------- */
 function vTrain(){
@@ -1720,8 +1720,9 @@ const TILES={
 const mapStyle=()=>TILES[state.mapStyle]?state.mapStyle:'dettagli';
 function mkMap(el,o){if(!window.L||!el)return null;try{const m=L.map(el,Object.assign({zoomControl:false,attributionControl:true,maxZoom:20},o||{}));
   const base={};Object.entries(TILES).forEach(([k,t])=>{base[t.n]=L.tileLayer(t.u,{subdomains:t.sub||'abc',maxZoom:20,maxNativeZoom:t.nat,attribution:t.a,detectRetina:k==='dettagli'});base[t.n]._rk=k});
-  base[TILES[mapStyle()].n].addTo(m);L.control.layers(base,null,{position:'topright'}).addTo(m);
-  m.on('baselayerchange',e=>{if(e.layer&&e.layer._rk){state.mapStyle=e.layer._rk;save(true)}});return m}catch(e){return null}}
+  const off=!navigator.onLine&&state.mapPack;if(off){const t=TILES[OFF_STYLE];base[t.n].options.maxNativeZoom=16}
+  base[TILES[off?OFF_STYLE:mapStyle()].n].addTo(m);L.control.layers(base,null,{position:'topright'}).addTo(m);
+  m.on('baselayerchange',e=>{if(e.layer&&e.layer._rk&&navigator.onLine){state.mapStyle=e.layer._rk;save(true)}});return m}catch(e){return null}}
 function segs(pts){const out=[];let c=[];pts.forEach((p,i)=>{if(i&&pts[i-1].br){if(c.length)out.push(c);c=[]}c.push([p.la,p.lo])});if(c.length)out.push(c);return out}
 let gM=null;
 function gpsRender(el){
@@ -1771,20 +1772,22 @@ function gDraw(cv,routes,heat){if(!cv)return;const r=window.devicePixelRatio||1,
     pts.forEach((p,i)=>{const pr=pts[i-1];if(!i||pr.br)g.moveTo(X(p),Y(p));else g.lineTo(X(p),Y(p))});g.stroke()});
   if(!heat&&routes.length===1){const pts=routes[0],s=pts[0],e=pts[pts.length-1];g.fillStyle='#16915A';g.beginPath();g.arc(X(s),Y(s),6,0,7);g.fill();g.fillStyle='#2A4DF5';g.beginPath();g.arc(X(e),Y(e),6,0,7);g.fill()}}
 function gpsSheet(id){const a=state.acts.find(x=>x.id===id);if(!a||!a.gps)return;const s=a.gps,bici=a.tipo==='Bici';
-  sheet(`<div class="eyebrow">${esc(fmtLong(actDay(a)||today()))} · ${esc(a.ora||'')}</div><h2 style="margin-top:6px">${esc(a.tipo)} · ${fmtKmI(s.dist)} km</h2>
+  sheet(`<div class="eyebrow">${esc(fmtLong(actDay(a)||today()))} · ${esc(a.ora||'')}</div><h2 style="margin-top:6px">${a.titolo?esc(a.titolo):esc(a.tipo)+' · '+fmtKmI(s.dist)+' km'}</h2>${a.titolo?`<div class="small muted">${esc(a.tipo)} · ${fmtKmI(s.dist)} km</div>`:''}
+   <label class="f" style="margin-top:10px">Nome<input id="g-title-${a.id}" type="text" value="${esc(a.titolo||'')}" placeholder="es. Giro del parco, Corsa del mattino" data-bind="gtitle" data-k="${a.id}"></label>
    <div class="grid2" style="grid-template-columns:repeat(3,1fr);text-align:center;margin-top:12px"><div><b class="num" style="font-size:26px">${fmtTI(s.moving)}</b><div class="eyebrow">tempo</div></div><div><b class="num" style="font-size:26px">${bici?speedI(s.moving,s.dist):paceI(s.moving,s.dist)}</b><div class="eyebrow">${bici?'km/h':'min/km'}</div></div><div><b class="num" style="font-size:26px">${s.kcal}</b><div class="eyebrow">kcal</div></div></div>
    <div class="small muted" style="text-align:center;margin-top:6px">${s.up} m di salita · ${fmtTI(s.total)} in totale con le pause</div>
    <div id="gsmap" style="width:100%;height:280px;border-radius:14px;overflow:hidden;background:var(--surface2);margin-top:12px"></div><canvas id="gscv" style="width:100%;height:240px;border-radius:14px;background:var(--surface2);display:none;margin-top:12px"></canvas>
    ${s.gaps?`<div class="note" style="margin-top:10px">${s.gaps} tratt${s.gaps===1?'o':'i'} senza segnale: lì la distanza è stimata in linea retta.</div>`:''}
    <div style="margin-top:12px">${s.splits.length?gSplitsTable(s.splits,bici):''}</div>
    <div class="row wrapx" style="margin-top:12px;gap:8px"><button class="btn grow" data-act="gps-gpx" data-id="${a.id}">Scarica GPX</button><button class="btn grow" data-act="close-sheet">Chiudi</button></div>
-   <div class="small muted" style="margin-top:6px">Il GPX si apre anche su Strava, Komoot e Google Earth.</div>`);
+   <div class="small muted" style="margin-top:6px">Il GPX si apre anche su Strava, Komoot e Google Earth.</div>
+   <button class="btn danger block" style="margin-top:12px" data-act="gps-del" data-id="${a.id}" data-confirm="1">Elimina questa ${a.tipo==='Bici'?'uscita':'corsa'}</button>`);
   setTimeout(()=>{const box=document.getElementById('gsmap'),m=mkMap(box,{zoomControl:true});
     if(!m){box.style.display='none';const c=document.getElementById('gscv');c.style.display='block';gDraw(c,[s.pts]);return}
     const ln=L.polyline(segs(s.pts),{color:'#F2542D',weight:5}).addTo(m);const a0=s.pts[0],z=s.pts[s.pts.length-1];
     L.circleMarker([a0.la,a0.lo],{radius:7,color:'#fff',weight:2,fillColor:'#16915A',fillOpacity:1}).addTo(m).bindTooltip('Partenza');
     L.circleMarker([z.la,z.lo],{radius:7,color:'#fff',weight:2,fillColor:'#2A4DF5',fillOpacity:1}).addTo(m).bindTooltip('Arrivo');
-    m.invalidateSize();m.fitBounds(ln.getBounds(),{padding:[24,24]})},60)}
+    m.invalidateSize();m.fitBounds(ln.getBounds(),{padding:[24,24],animate:false})},60)}
 function gpsGpx(id){const a=state.acts.find(x=>x.id===id);if(!a||!a.gps)return;
   const x=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Ritmo" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>${esc(a.tipo)} ${esc(actDay(a)||'')}</name><type>${a.tipo==='Bici'?'cycling':a.tipo==='Corsa'?'running':'walking'}</type><trkseg>\n`+a.gps.pts.map(p=>`<trkpt lat="${p.la}" lon="${p.lo}">${p.al!=null?`<ele>${p.al}</ele>`:''}<time>${new Date(p.t).toISOString()}</time></trkpt>`).join('\n')+`\n</trkseg></trk></gpx>`;
   try{const u=URL.createObjectURL(new Blob([x],{type:'application/gpx+xml'})),l=document.createElement('a');l.href=u;l.download=`ritmo-${a.tipo.toLowerCase()}-${actDay(a)}.gpx`;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),3000)}catch(e){toast('Download non disponibile qui: fallo dall\'app sul telefono')}}
@@ -1804,7 +1807,7 @@ function gpsQuickHTML(home){
   const today_=state.acts.filter(a=>actDay(a)===today()&&GPS_T.includes(a.tipo)&&!a.gps);
   return `<div class="card" style="margin-bottom:12px"><div class="row between"><div class="eyebrow">Registra con il GPS</div><span class="small muted">anche offline</span></div>
    <div class="grid2" style="grid-template-columns:repeat(3,1fr);margin-top:10px">${GPS_T.map(t=>{const pl=today_.find(a=>a.tipo===t);return `<button class="btn ${pl?'good':''}" style="padding:12px 4px;font-size:14px;white-space:nowrap" data-act="gps-start" data-v="${t}" ${pl?`data-id="${pl.id}"`:''}>▶ ${t}</button>`}).join('')}</div>
-   ${gInArtifact()?'<div class="small muted" style="margin-top:8px">Il GPS funziona dall\'app Ritmo installata sul telefono.</div>':''}</div>`}
+   ${gInArtifact()?'<div class="small muted" style="margin-top:8px">Il GPS funziona dall\'app Ritmo installata sul telefono.</div>':`<button class="btn sm ghost" style="padding-left:0;margin-top:6px" data-act="gps-prefetch">${state.mapPack?'✓ Mappa offline salvata il '+esc(fmtShort(state.mapPack.d))+' · aggiorna':'⬇ Salva la mappa offline (50 km intorno a te)'}</button>`}</div>`}
 function gpsRecordsHTML(){const L=state.acts.filter(a=>a.gps);if(!L.length)return '';
   const m=today().slice(0,7),mon=L.filter(a=>(actDay(a)||'').slice(0,7)===m),km=t=>mon.filter(a=>!t||a.tipo===t).reduce((s,a)=>s+a.gps.dist,0);
   const goal=+state.gpsGoal||0,tot=km();
@@ -1812,7 +1815,7 @@ function gpsRecordsHTML(){const L=state.acts.filter(a=>a.gps);if(!L.length)retur
   const longest=L.reduce((b,a)=>a.gps.dist>(b?b.gps.dist:0)?a:b,null);
   return `<div class="card stack" style="margin-top:12px"><div class="row between"><h3>I tuoi percorsi</h3><span class="pill">${L.length} registrazioni</span></div>
    <div data-heatmap="1" style="width:100%;height:260px;border-radius:14px;overflow:hidden;background:var(--surface2)"></div><canvas data-heat="1" style="width:100%;height:220px;border-radius:14px;background:var(--surface2);display:none"></canvas>
-   <button class="btn sm" data-act="gps-prefetch">⬇ Salva la mappa della tua zona per l'uso offline</button><div class="small muted">Con il tasto in alto a destra sulla mappa scegli lo stile: dettagliata, bici e corsa, pulita o satellite.</div>
+   <button class="btn sm" data-act="gps-prefetch">${state.mapPack?'✓ Mappa offline salvata il '+esc(fmtShort(state.mapPack.d))+' · aggiorna':'⬇ Salva la mappa offline (50 km intorno a te)'}</button><div class="small muted">Con il Wi-Fi: ci vogliono alcuni minuti e circa 100-150 MB. Senza internet la mappa usa lo stile "Pulita".</div><div class="small muted">Con il tasto in alto a destra sulla mappa scegli lo stile: dettagliata, bici e corsa, pulita o satellite.</div>
    <div class="small muted">Tutti i tuoi percorsi uno sopra l'altro: più è acceso, più ci passi.</div>
    <div class="grid2"><div><div class="eyebrow">Questo mese</div><b class="num" style="font-size:24px">${fmtKmI(tot)} km</b><div class="small muted">Corsa ${fmtKmI(km('Corsa'))} · Bici ${fmtKmI(km('Bici'))}</div></div>
    <div><div class="eyebrow">Record</div><div class="small">${bestRun?`Km più veloce: <b>${paceI(bestRun,1000)} /km</b><br>`:''}${longest?`Più lunga: <b>${fmtKmI(longest.gps.dist)} km</b> (${esc(longest.tipo)})`:''}</div></div></div>
@@ -1823,20 +1826,29 @@ function gpsDrawAll(){const box=document.querySelector('[data-heatmap]');if(heat
   const routes=state.acts.filter(a=>a.gps).map(a=>a.gps.pts);const m=mkMap(box,{zoomControl:true});
   if(!m){box.style.display='none';document.querySelectorAll('canvas[data-heat]').forEach(cv=>{cv.style.display='block';gDraw(cv,routes,true)});return}
   heatMap=m;let bounds=null;routes.forEach(pts=>{const ln=L.polyline(segs(pts),{color:'#F2542D',weight:4,opacity:.45}).addTo(m);bounds=bounds?bounds.extend(ln.getBounds()):ln.getBounds()});
-  setTimeout(()=>{m.invalidateSize();if(bounds)m.fitBounds(bounds,{padding:[20,20]})},60)}
+  setTimeout(()=>{if(!m._container||!m._container.isConnected)return;m.invalidateSize();if(bounds&&m._container&&m._container.isConnected)m.fitBounds(bounds,{padding:[20,20],animate:false})},60)}
 /* scarica le tessere della mappa intorno a te (circa 3 km), così si vede anche senza internet */
+/* mappa offline: dettaglio massimo entro 10 km da casa, mappa generale fino a 50 km (stile "Pulita", server veloce) */
+const OFF_STYLE='strade';
 async function gPrefetch(btn){
   if(gInArtifact()){toast('La mappa offline si salva dall\'app Ritmo sul telefono');return}
+  if(ui.prefetching){toast('Sto già salvando la mappa');return}
   const last=state.acts.filter(a=>a.gps).map(a=>a.gps.pts[0]).pop();
-  const pos=await new Promise(res=>{if(!('geolocation' in navigator))return res(last||null);navigator.geolocation.getCurrentPosition(p=>res({la:p.coords.latitude,lo:p.coords.longitude}),()=>res(last||null),{enableHighAccuracy:true,timeout:15000})});
-  if(!pos){toast('Non trovo la tua posizione: attiva il GPS');return}
+  if(btn)btn.textContent='Cerco la tua posizione…';
+  const pos=await new Promise(res=>{if(!('geolocation' in navigator))return res(last||null);navigator.geolocation.getCurrentPosition(p=>res({la:p.coords.latitude,lo:p.coords.longitude}),()=>res(last||null),{enableHighAccuracy:true,timeout:20000})});
+  if(!pos){toast('Non trovo la tua posizione: attiva la Posizione e riprova');if(btn)btn.textContent='⬇ Salva la mappa offline';return}
+  try{navigator.storage&&navigator.storage.persist&&await navigator.storage.persist()}catch(e){}
   const t2x=(lo,z)=>Math.floor((lo+180)/360*2**z),t2y=(la,z)=>{const r=la*Math.PI/180;return Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*2**z)};
-  const dLa=3/111,dLo=3/(111*Math.cos(pos.la*Math.PI/180)),urls=[];
-  for(let z=12;z<=16;z++){const x0=t2x(pos.lo-dLo,z),x1=t2x(pos.lo+dLo,z),y0=t2y(pos.la+dLa,z),y1=t2y(pos.la-dLa,z);
-    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){const t=TILES[mapStyle()];urls.push(t.u.replace('{s}',(t.sub||'a')[(x+y)%(t.sub||'a').length]).replace('{z}',z).replace('{x}',x).replace('{y}',y).replace('{r}',(window.devicePixelRatio||1)>1?'@2x':''))}}
-  let done=0;const q=urls.slice();const work=async()=>{while(q.length){const u=q.shift();try{await fetch(u,{mode:'no-cors'})}catch(e){}done++;if(btn&&done%20===0)btn.textContent=`Salvo la mappa… ${Math.round(done/urls.length*100)}%`}};
-  await Promise.all([work(),work(),work(),work()]);
-  if(btn)btn.textContent='✓ Mappa della zona salvata';toast(`Mappa salvata: ${urls.length} riquadri intorno a te (circa 3 km)`)}
+  const T=TILES[OFF_STYLE],urls=[],r2=(window.devicePixelRatio||1)>1?'@2x':'';
+  const add=(km,z0,z1)=>{const dLa=km/111,dLo=km/(111*Math.cos(pos.la*Math.PI/180));for(let z=z0;z<=z1;z++){const x0=t2x(pos.lo-dLo,z),x1=t2x(pos.lo+dLo,z),y0=t2y(pos.la+dLa,z),y1=t2y(pos.la-dLa,z);
+    for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++)urls.push(T.u.replace('{s}',T.sub[(x+y)%T.sub.length]).replace('{z}',z).replace('{x}',x).replace('{y}',y).replace('{r}',r2))}};
+  add(50,8,12);add(25,13,13);add(10,14,16);
+  ui.prefetching=true;const cache=await caches.open('ritmo-mappe');let done=0,ok=0;const q=urls.slice();const t0=Date.now();
+  const work=async()=>{while(q.length){const u=q.shift();try{if(!(await cache.match(u))){let r=null;try{r=await fetch(u,{mode:'cors'})}catch(e){r=await fetch(u,{mode:'no-cors'})}if(r&&(r.ok||r.type==='opaque')){await cache.put(u,r);ok++}}else ok++}catch(e){}done++;
+    if(btn&&done%25===0){const pc=done/urls.length,left=Math.round((Date.now()-t0)/pc*(1-pc)/1000);btn.textContent=`Salvo la mappa… ${Math.round(pc*100)}% · ancora ${left>90?Math.round(left/60)+' min':left+' s'}`}}};
+  await Promise.all(Array.from({length:8},work));ui.prefetching=false;
+  state.mapPack={la:pos.la,lo:pos.lo,d:today(),n:ok};save(true);
+  if(btn)btn.textContent='✓ Mappa salvata: 50 km intorno a casa';toast(`Mappa offline salvata: ${ok} riquadri (dettaglio fino a 10 km, generale fino a 50 km)`)}
 
 /* ---------- ORARI ---------- */
 function vOrari(){
@@ -1949,6 +1961,7 @@ document.addEventListener('input',e=>{
   if(sc==='w'){ui.wiz[k]=v;const btn=document.querySelector('[data-act="w-next"]');if(btn&&ui.step===0){const d=ui.wiz;const ok=+d.eta>0&&+d.altezza>0&&+d.peso>0;btn.disabled=!ok;btn.style.opacity=ok?'':'.45'}return}
   if(sc==='a'){ui.actDraft[k]=v;return}
   if(sc==='p'){state.p[k]=v;if(k==='peso'&&+v>0){state.dietAt=Date.now()}if(TRAIN_KEYS.has(k))state.trainingAt=Date.now();save(true);return}
+  if(sc==='gtitle'){const a=state.acts.find(x=>x.id===k);if(a){a.titolo=String(v).trim().slice(0,60);save(true)}return}
   if(sc==='ggoal'){state.gpsGoal=+v||0;save(true);return}
   if(sc==='load'){state.carichi=state.carichi||{};const e=state.carichi[k]=state.carichi[k]||{};e[el.dataset.f]=v;e.d=today();if(el.dataset.f==='kg'||el.dataset.f==='reps'){const b=e.best||{};if((+e.kg||0)>(+b.kg||0)||((+e.kg||0)===(+b.kg||0)&&(+e.reps||0)>(+b.reps||0)))e.best={kg:e.kg,reps:e.reps}}save(true);return}
   if(sc==='sn'){state.sonnoW=state.sonnoW||{};const w=state.sonnoW[el.dataset.w]=state.sonnoW[el.dataset.w]||{};const e=w[k]=w[k]||{};e[el.dataset.f]=v;save(true);return}
@@ -1958,7 +1971,7 @@ document.addEventListener('input',e=>{
   if(sc==='orari'){state.p.orari=orari();state.p.orari[k]=v;save(true);return}
   if(sc==='fin'){state.fin[k]=Math.max(0,Math.min(100,+v||0));save(true)}
 });
-document.addEventListener('change',e=>{if(['p','fin','orari','scuola','sw','sn','sonno','load','ggoal'].includes(e.target.dataset.bind))render()});
+document.addEventListener('change',e=>{if(['p','fin','orari','scuola','sw','sn','sonno','load','ggoal','gtitle'].includes(e.target.dataset.bind))render()});
 document.addEventListener('click',async e=>{
   const el=e.target.closest('[data-act]');if(!el)return;
   const act=el.dataset.act;
@@ -2066,6 +2079,7 @@ document.addEventListener('click',async e=>{
    case 'gps-discard':gDiscard();toast('Registrazione annullata');break;
    case 'gps-open':gpsSheet(el.dataset.id);break;
    case 'gps-gpx':gpsGpx(el.dataset.id);break;
+   case 'gps-del':state.acts=state.acts.filter(x=>x.id!==el.dataset.id);closeSheet();save();toast('Eliminata');break;
    case 'gps-center':if(gM){gM.follow=true;el.hidden=true;liveRender()}break;
    case 'gps-prefetch':gPrefetch(el);break;
    case 'pp-auto':if(state.ppPick)delete state.ppPick[k+':'+el.dataset.s];save();break;
