@@ -1695,7 +1695,7 @@ function gPos(p){
   G.pts.push(pt);gSave();
 }
 function gAuto(v){if(!(state.gpsAuto??true)||!G||G.state!=='rec')return;const P=GPS_P[G.tipo];
-  if(v<P.auto){G.slow=G.slow||Date.now();if(Date.now()-G.slow>10000){G.state='auto';G.pauses.push({a:G.slow});G.slow=null;gSay('Pausa automatica');gSave(true)}}else G.slow=null}
+  if(state.autoPausa&&v<P.auto){G.slow=G.slow||Date.now();if(Date.now()-G.slow>10000){G.state='auto';G.pauses.push({a:G.slow});G.slow=null;gSay('Pausa automatica');gSave(true)}}else G.slow=null}
 function gResume(){const p=G.pauses[G.pauses.length-1];if(p&&!p.b)p.b=Date.now();G.state='rec';gSay('Si riparte')}
 function gSplit(){const km=Math.floor(G.dist/1000);if(km>G.splits.length){const mv=gMoving(G,Date.now()),ms=mv-G.splits.reduce((s,x)=>s+x,0);G.splits.push(ms);
   try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}
